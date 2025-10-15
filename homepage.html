@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=414, height=896, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>MyTownExplorer — Route & Nav (Mobile)</title>
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<style>
+  :root{
+    --accent1:#5ee7df; --accent2:#1e90ff; --glass: rgba(255,255,255,0.12);
+    --glass-strong: rgba(255,255,255,0.26);
+    --text-dark: #06383a;
+  }
+  html,body{height:100%;margin:0;font-family:Inter, Poppins, system-ui, -apple-system; background: linear-gradient(135deg,var(--accent1),var(--accent2)); -webkit-font-smoothing:antialiased;}
+  /* Container centered for mobile widths */
+  .wrap { width:92%; max-width:414px; margin:0 auto; height:100vh; position:relative; display:flex; flex-direction:column; }
+
+  /* Header with inputs */
+  header {
+    display:flex; gap:8px; align-items:center;
+    padding:14px 6px 8px 6px; z-index:1400;
+  }
+  .hamburger {
+    width:36px; height:36px; border-radius:8px; background:var(--glass); display:flex; flex-direction:column; justify-content:center; align-items:center; gap:4px;
+    padding:6px; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,0.12);
+  }
+  .hamburger span{ width:18px; height:2px; background:white; border-radius:2px; display:block; }
+
+  .fromto { flex:1; display:flex; flex-direction:column; gap:8px; }
+  .row { display:flex; gap:8px; }
+  input[type="text"] {
+    flex:1; padding:10px 12px; border-radius:12px; border:none; outline:none; font-size:0.95rem;
+    box-shadow:0 6px 18px rgba(0,0,0,0.12);
+  }
+  .icon-btn {
+    width:44px; height:44px; border-radius:10px; background:var(--glass-strong); border:none; display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 8px 18px rgba(0,0,0,0.12);
+    font-size:1.05rem;
+  }
+
+  /* Map area */
+  #map { flex:1; border-radius:16px; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,0.14); margin-bottom:8px; }
+
+  /* Controls under map */
+  .controls { display:flex; gap:10px; align-items:center; justify-content:center; padding-bottom:8px; z-index:1400; }
+  .primary {
+    background:linear-gradient(90deg,#56ccf2,#2f80ed); color:white; border:none; padding:12px 16px; border-radius:12px; font-weight:700; font-size:0.98rem; cursor:pointer; box-shadow:0 8px 18px rgba(0,0,0,0.12);
+  }
+  .secondary {
+    background:rgba(255,255,255,0.95); border:none; padding:8px 10px; border-radius:10px; font-weight:600; cursor:pointer; box-shadow:0 6px 14px rgba(0,0,0,0.08);
+  }
+
+  /* route info card */
+  .route-card {
+    position:absolute; left:50%; transform:translateX(-50%); bottom:86px; z-index:1600;
+    background:rgba(0,0,0,0.7); color:white; padding:10px 14px; border-radius:12px; font-weight:600; font-size:0.95rem; box-shadow:0 8px 20px rgba(0,0,0,0.25);
+    display:none;
+  }
+
+  /* Sidebar drawer */
+  .drawer {
+    position:fixed; left:-260px; top:0; width:260px; height:100%; background:rgba(0,0,0,0.82); color:white; padding-top:80px; z-index:2000; transition:left 0.28s ease;
+    display:flex; flex-direction:column; gap:6px;
+  }
+  .drawer.open { left:0; }
+  .drawer a { padding:14px 20px; color:white; text-decoration:none; border-bottom:1px solid rgba(255,255,255,0.06); font-weight:600; }
+
+  /* AI chat overlay (placeholder) */
+  .ai-btn {
+    position: fixed; right:18px; bottom:18px; z-index:1700;
+    width:62px; height:62px; border-radius:999px; background:linear-gradient(90deg,#ff8a65,#ff5252); color:white; display:flex; align-items:center; justify-content:center; font-size:1.3rem; box-shadow:0 12px 30px rgba(0,0,0,0.25); cursor:pointer;
+  }
+  .ai-overlay {
+    position:fixed; right:12px; bottom:92px; width:340px; max-width:90%; max-height:62%; background:white; border-radius:14px; box-shadow:0 20px 50px rgba(0,0,0,0.35); overflow:hidden; display:none; z-index:1800;
+    flex-direction:column;
+  }
+  .ai-overlay header { background:linear-gradient(90deg,#56ccf2,#2f80ed); color:white; padding:10px; font-weight:700; }
+  .ai-overlay .messages { padding:10px; overflow:auto; height:220px; background:#fafafa; }
+  .ai-overlay .composer { display:flex; gap:8px; padding:10px; border-top:1px solid #eee; }
+  .ai-overlay input { flex:1; padding:8px 10px; border-radius:8px; border:1px solid #ddd; }
+
+  /* autocomplete results */
+  .suggestions { position: absolute; top: 90px; left: 18px; right:18px; z-index:1500; max-height:180px; overflow:auto; background:white; border-radius:10px; box-shadow:0 12px 30px rgba(0,0,0,0.2); display:none; }
+  .suggestions div { padding:10px 12px; border-bottom:1px solid #eee; font-size:0.92rem; cursor:pointer; }
+  .suggestions div:hover{ background:#f3f5f6; }
+
+  /* small screens tweaks */
+  @media (max-width:420px){
+    .ai-overlay { right:8px; left:8px; width:auto; bottom:84px; }
+    .drawer { width:86%; left:-86%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <!-- header: hamburger + inputs -->
+  <header>
+    <div class="hamburger" id="hamburgerBtn" title="Menu">
+      <span></span><span></span><span></span>
+    </div>
+
+    <div style="flex:1; margin-left:8px;">
+      <div style="position:relative;">
+        <input id="fromInput" type="text" placeholder="From (leave empty to use current location)" autocomplete="off"/>
+      </div>
+      <div style="position:relative; margin-top:8px;">
+        <input id="toInput" type="text" placeholder="To (destination)" autocomplete="off"/>
+      </div>
+    </div>
+
+    <button id="locateBtn" class="icon-btn" title="Locate me" style="margin-left:8px;">📍</button>
+  </header>
+
+  <!-- suggestions container for both inputs -->
+  <div class="suggestions" id="suggestions"></div>
+
+  <!-- map -->
+  <div id="map"></div>
+
+  <!-- route info -->
+  <div id="routeCard" class="route-card"></div>
+
+  <!-- controls -->
+  <div class="controls" style="padding:12px 0;">
+    <button id="startBtn" class="primary">Start Route</button>
+    <button id="playBtn" class="secondary" title="Play / Pause">▶︎</button>
+    <button id="stopBtn" class="secondary" title="Stop">■</button>
+  </div>
+
+  <!-- drawer -->
+  <nav id="drawer" class="drawer" aria-hidden="true">
+    <a href="home.html">🏠 Home</a>
+    <a href="map.html">🗺️ Explore</a>
+    <a href="ai.html">Exploree AI</a>
+    <a href="upload.html">📸 Upload</a>
+    <a href="rewards.html">🏆 Rewards</a>
+    <a href="weather.html">🌦️ Weather</a>
+    <a href="profile.html">👤 Profile</a>
+  </nav>
+
+  <!-- AI floating -->
+  <div id="aiBtn" class="ai-btn" title="AI Assistant">🤖</div>
+
+  <div id="aiOverlay" class="ai-overlay" role="dialog" aria-hidden="true" style="display:none;">
+    <header>AI Assistant</header>
+    <div class="messages" id="aiMessages">
+      <div style="padding:8px;color:#666;font-size:0.95rem;">Ask anything about places, routes, food spots and more (placeholder).</div>
+    </div>
+    <div class="composer">
+      <input id="aiInput" placeholder="Ask AI..." />
+      <button id="aiSend" class="secondary">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+/* ========== Initialization ========== */
+const map = L.map('map', { zoomControl: false }).setView([20.5937,78.9629],5);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+/* DOM refs */
+const hamburgerBtn = document.getElementById('hamburgerBtn');
+const drawer = document.getElementById('drawer');
+const fromInput = document.getElementById('fromInput');
+const toInput   = document.getElementById('toInput');
+const suggestions = document.getElementById('suggestions');
+const locateBtn  = document.getElementById('locateBtn');
+const startBtn = document.getElementById('startBtn');
+const playBtn  = document.getElementById('playBtn');
+const stopBtn  = document.getElementById('stopBtn');
+const routeCard = document.getElementById('routeCard');
+
+const aiBtn = document.getElementById('aiBtn');
+const aiOverlay = document.getElementById('aiOverlay');
+const aiMessages = document.getElementById('aiMessages');
+const aiSend = document.getElementById('aiSend');
+const aiQueryInput = document.getElementById('aiInput');
+
+/* State */
+let drawerOpen = false;
+let routeLayer = null;
+let routeGeo = null;       // GeoJSON coords array
+let playbackMarker = null;
+let playbackIndex = 0;
+let playbackTimer = null;
+let isPlaying = false;
+
+/* ========== Drawer toggle ========== */
+hamburgerBtn.addEventListener('click', ()=> {
+  drawerOpen = !drawerOpen;
+  if(drawerOpen) { drawer.classList.add('open'); drawer.setAttribute('aria-hidden','false'); } 
+  else { drawer.classList.remove('open'); drawer.setAttribute('aria-hidden','true'); }
+});
+
+/* ========== Autocomplete using Nominatim ========== */
+let activeInput = null;
+let currentController = null;
+
+function showSuggestions(items) {
+  suggestions.innerHTML = '';
+  if(!items || items.length === 0) { suggestions.style.display = 'none'; return; }
+  items.forEach(it => {
+    const el = document.createElement('div');
+    el.textContent = it.display_name;
+    el.addEventListener('click', () => {
+      if(activeInput) activeInput.value = it.display_name;
+      suggestions.style.display = 'none';
+      // store coordinates in dataset for quick route (we'll use geocode again on Start for safety)
+      activeInput.dataset.lat = it.lat;
+      activeInput.dataset.lon = it.lon;
+    });
+    suggestions.appendChild(el);
+  });
+  suggestions.style.display = 'block';
+}
+
+/* fetch suggestions */
+async function fetchSuggestions(q) {
+  if(!q) return [];
+  try {
+    if(currentController) currentController.abort();
+    currentController = new AbortController();
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&addressdetails=1&limit=6`;
+    const res = await fetch(url, { signal: currentController.signal });
+    const data = await res.json();
+    return data;
+  } catch(e) {
+    return [];
+  }
+}
+
+/* attach input listeners */
+[fromInput, toInput].forEach(inp => {
+  inp.addEventListener('input', async (e) => {
+    activeInput = inp;
+    const q = inp.value.trim();
+    if(q.length < 2) { suggestions.style.display = 'none'; return; }
+    const items = await fetchSuggestions(q);
+    showSuggestions(items);
+  });
+  inp.addEventListener('focus', ()=> { activeInput = inp; });
+});
+
+/* hide suggestions when clicking outside */
+document.addEventListener('click', (e) => {
+  if(!suggestions.contains(e.target) && e.target !== fromInput && e.target !== toInput) suggestions.style.display = 'none';
+});
+
+/* ========== Locate current position (sets map and fills From) ========== */
+locateBtn.addEventListener('click', ()=> {
+  if(!navigator.geolocation) { alert('Geolocation not supported'); return; }
+  locateBtn.disabled = true;
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    locateBtn.disabled = false;
+    const lat = pos.coords.latitude, lon = pos.coords.longitude;
+    // reverse geocode to a friendly name
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+      const j = await r.json();
+      fromInput.value = j.display_name || `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+      fromInput.dataset.lat = lat; fromInput.dataset.lon = lon;
+    } catch(e) {
+      fromInput.value = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+      fromInput.dataset.lat = lat; fromInput.dataset.lon = lon;
+    }
+    map.setView([lat,lon], 13);
+  }, (err) => { locateBtn.disabled = false; alert('Permission denied or error locating'); }, { enableHighAccuracy:true, timeout:10000 });
+});
+
+/* ========== Geocode helper (Nominatim single result) ========== */
+async function geocodeOne(query) {
+  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`;
+  const res = await fetch(url);
+  const arr = await res.json();
+  if(!arr || arr.length === 0) return null;
+  return { lat: parseFloat(arr[0].lat), lon: parseFloat(arr[0].lon), name: arr[0].display_name };
+}
+
+/* ========== Request route from OSRM and draw ========== */
+async function requestAndDrawRoute(from, to) {
+  // from/to are {lat,lon}
+  try {
+    if(routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+    if(playbackMarker) { map.removeLayer(playbackMarker); playbackMarker = null; stopPlayback(); }
+    // OSRM route call
+    const coords = `${from.lon},${from.lat};${to.lon},${to.lat}`;
+    const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+    const r = await fetch(url);
+    if(!r.ok) throw new Error('Routing error');
+    const json = await r.json();
+    if(!json.routes || json.routes.length === 0) throw new Error('No route found');
+
+    const route = json.routes[0];
+    routeGeo = route.geometry.coordinates.map(c => [c[1], c[0]]); // convert lon,lat -> lat,lon
+
+    routeLayer = L.polyline(routeGeo, { color:'#0078ff', weight:5, opacity:0.95 }).addTo(map);
+    map.fitBounds(routeLayer.getBounds(), { padding:[40,40] });
+
+    const distKm = (route.distance/1000).toFixed(1);
+    const durMin = Math.round(route.duration/60);
+    routeCard.style.display = 'block';
+    routeCard.textContent = `Distance: ${distKm} km · Duration: ${durMin} min`;
+
+    // place start and end markers
+    const start = L.marker([from.lat, from.lon]).addTo(map);
+    const end = L.marker([to.lat, to.lon]).addTo(map);
+    // keep markers for removal
+    routeLayer._markers = [start,end];
+    return true;
+  } catch(err) {
+    alert(err.message || 'Route error');
+    return false;
+  }
+}
+
+/* ========== START ROUTE button handler ========== */
+startBtn.addEventListener('click', async () => {
+  const fromVal = fromInput.value.trim();
+  const toVal = toInput.value.trim();
+  if(!toVal) { alert('Enter destination (To)'); return; }
+
+  // get from coords: prefer stored dataset, else geocode
+  let fromCoords = null;
+  if(fromInput.dataset.lat && fromInput.dataset.lon) {
+    fromCoords = { lat: parseFloat(fromInput.dataset.lat), lon: parseFloat(fromInput.dataset.lon) };
+  } else if(fromVal) {
+    const g = await geocodeOne(fromVal);
+    if(!g) { alert('Start location not found'); return; }
+    fromCoords = { lat: g.lat, lon: g.lon };
+  } else {
+    // empty from -> use current location or map center
+    try {
+      const pos = await getCurrentPosition();
+      fromCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+    } catch(e) {
+      const c = map.getCenter();
+      fromCoords = { lat: c.lat, lon: c.lng };
+    }
+  }
+
+  // get to coords
+  let toCoords = null;
+  if(toInput.dataset.lat && toInput.dataset.lon) {
+    toCoords = { lat: parseFloat(toInput.dataset.lat), lon: parseFloat(toInput.dataset.lon) };
+  } else {
+    const g2 = await geocodeOne(toVal);
+    if(!g2) { alert('Destination not found'); return; }
+    toCoords = { lat: g2.lat, lon: g2.lon };
+  }
+
+  const ok = await requestAndDrawRoute(fromCoords, toCoords);
+  if(ok) {
+    // prepare playback marker at start
+    preparePlaybackMarker();
+  }
+});
+
+/* ========== helper: getCurrentPosition as Promise ========== */
+function getCurrentPosition(options={ enableHighAccuracy:true, timeout:10000 }) {
+  return new Promise((res, rej) => {
+    if(!navigator.geolocation) return rej(new Error('Geolocation unsupported'));
+    navigator.geolocation.getCurrentPosition(res, rej, options);
+  });
+}
+
+/* ========== Playback (simulate navigation) ========== */
+function preparePlaybackMarker() {
+  if(!routeGeo || routeGeo.length === 0) return;
+  // put marker at first point
+  if(playbackMarker) map.removeLayer(playbackMarker);
+  playbackIndex = 0;
+  playbackMarker = L.marker(routeGeo[0], { icon: L.divIcon({ className:'playIcon', html:'🚗', iconSize:[30,30], iconAnchor:[15,15] }) }).addTo(map);
+  map.panTo(routeGeo[0]);
+  isPlaying = false;
+  playBtn.textContent = '▶︎';
+}
+
+function startPlayback() {
+  if(!routeGeo || routeGeo.length === 0) return;
+  if(!playbackMarker) preparePlaybackMarker();
+  if(isPlaying) return;
+  isPlaying = true;
+  playBtn.textContent = '⏸';
+  playbackTimer = setInterval(() => {
+    playbackIndex += Math.max(1, Math.floor(routeGeo.length / 200)); // step size (speed)
+    if(playbackIndex >= routeGeo.length) { stopPlayback(); return; }
+    const latlng = routeGeo[playbackIndex];
+    playbackMarker.setLatLng(latlng);
+    // keep map centered on moving marker slowly
+    map.panTo(latlng, { animate:true, duration:0.4 });
+  }, 400); // update every 400ms
+}
+
+function pausePlayback() {
+  isPlaying = false;
+  playBtn.textContent = '▶︎';
+  if(playbackTimer) { clearInterval(playbackTimer); playbackTimer = null; }
+}
+
+function stopPlayback() {
+  isPlaying = false;
+  playBtn.textContent = '▶︎';
+  if(playbackTimer) { clearInterval(playbackTimer); playbackTimer = null; }
+  playbackIndex = 0;
+  if(playbackMarker) { map.removeLayer(playbackMarker); playbackMarker = null; }
+}
+
+/* play/pause/stop buttons */
+playBtn.addEventListener('click', ()=> {
+  if(isPlaying) pausePlayback();
+  else startPlayback();
+});
+stopBtn.addEventListener('click', ()=> {
+  stopPlayback();
+  if(routeLayer) {
+    map.removeLayer(routeLayer);
+    if(routeLayer._markers) routeLayer._markers.forEach(m => map.removeLayer(m));
+    routeLayer = null;
+    routeGeo = null;
+    routeCard.style.display = 'none';
+  }
+});
+
+/* ========== Map click sets To input ========== */
+map.on('click', async (e) => {
+  const lat = e.latlng.lat, lon = e.latlng.lng;
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+    const j = await r.json();
+    toInput.value = j.display_name || `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+    toInput.dataset.lat = lat; toInput.dataset.lon = lon;
+    // briefly flash message
+    routeCard.style.display = 'block';
+    routeCard.textContent = 'Destination set from map';
+    setTimeout(()=> { if(routeCard.textContent === 'Destination set from map') routeCard.style.display='none'; }, 1600);
+  } catch(e) {
+    toInput.value = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+  }
+});
+
+/* ========== AI overlay placeholder ========== */
+aiBtn.addEventListener('click', ()=> {
+  if(aiOverlay.style.display === 'flex') { aiOverlay.style.display = 'none'; aiOverlay.setAttribute('aria-hidden','true'); } 
+  else { aiOverlay.style.display = 'flex'; aiOverlay.setAttribute('aria-hidden','false'); }
+});
+
+/* simple AI send (placeholder) */
+aiSend.addEventListener('click', async () => {
+  const q = aiQueryInput.value.trim();
+  if(!q) return;
+  const userRow = document.createElement('div'); userRow.style.padding='8px'; userRow.style.textAlign='right'; userRow.innerHTML = `<div style="display:inline-block;background:#e6f7ff;padding:8px;border-radius:8px;">${escapeHtml(q)}</div>`; aiMessages.appendChild(userRow);
+  aiQueryInput.value = '';
+  // placeholder bot reply (simulate)
+  const bot = document.createElement('div'); bot.style.padding='8px'; bot.innerHTML = `<div style="display:inline-block;background:#fff;padding:8px;border-radius:8px;border:1px solid #eee;">Thinking...</div>`; aiMessages.appendChild(bot);
+  aiMessages.scrollTop = aiMessages.scrollHeight;
+  // simulate network delay
+  setTimeout(()=> { bot.innerHTML = `<div style="display:inline-block;background:#fff;padding:8px;border-radius:8px;border:1px solid #eee;">(Demo) AI reply will appear here when integrated.</div>`; aiMessages.scrollTop = aiMessages.scrollHeight; }, 900);
+});
+
+/* very small helper */
+function escapeHtml(s) { return s.replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[ch]); }
+
+/* Optional: autofill suggestions when user presses arrow keys or taps first result - basic UX improvement */
+[fromInput, toInput].forEach(inp => {
+  inp.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter') {
+      suggestions.style.display='none';
+      // if pressing enter on To, trigger Start
+      if(inp === toInput) startBtn.click();
+    }
+  });
+});
+</script>
+</body>
+</html>
