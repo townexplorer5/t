@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=414, height=896, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>MyTownExplorer – Global Map View</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <style>
+    body, html {
+      height: 100%;
+      margin: 0;
+      background: #e0f7fa;
+      font-family: "Poppins", sans-serif;
+    }
+
+    #map {
+      height: 100%;
+      width: 100%;
+    }
+
+    .title {
+      position: absolute;
+      top: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.85);
+      padding: 10px 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      z-index: 1000;
+      font-weight: 600;
+      font-size: 1.1rem;
+      color: #0078d4;
+    }
+
+    .leaflet-popup-content-wrapper {
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="title">🌏 MyTownExplorer – Explore India & World</div>
+  <div id="map"></div>
+
+  <script>
+    const map = L.map('map').setView([20.5937, 78.9629], 4); // Focus on India
+
+    // Use OpenStreetMap tiles (no branding like Google)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Custom icons using emojis (you can replace with SVGs later)
+    const iconList = [
+      { name: "Mount Everest", emoji: "🏔️", lat: 27.9881, lon: 86.9250 },
+      { name: "Himalayas", emoji: "⛰️", lat: 30.0668, lon: 79.0193 },
+      { name: "Ganges River", emoji: "🌊", lat: 25.3176, lon: 82.9739 },
+      { name: "Taj Mahal", emoji: "🕌", lat: 27.1751, lon: 78.0421 },
+      { name: "Varanasi Temple", emoji: "🛕", lat: 25.3176, lon: 82.9739 },
+      { name: "Gateway of India", emoji: "🏛️", lat: 18.9219, lon: 72.8346 },
+      { name: "Goa Beach", emoji: "🏖️", lat: 15.2993, lon: 74.1240 },
+      { name: "Sundarbans", emoji: "🌴", lat: 21.9497, lon: 89.1833 },
+      { name: "Red Fort", emoji: "🏰", lat: 28.6562, lon: 77.2410 },
+      { name: "Mecca", emoji: "🕋", lat: 21.3891, lon: 39.8579 },
+      { name: "Eiffel Tower", emoji: "🗼", lat: 48.8584, lon: 2.2945 },
+      { name: "Statue of Liberty", emoji: "🗽", lat: 40.6892, lon: -74.0445 },
+      { name: "Mount Fuji", emoji: "🗻", lat: 35.3606, lon: 138.7274 },
+      { name: "Amazon River", emoji: "🌊", lat: -3.4653, lon: -62.2159 },
+      { name: "Sydney Opera House", emoji: "🎭", lat: -33.8568, lon: 151.2153 }
+    ];
+
+    iconList.forEach(place => {
+      const icon = L.divIcon({
+        html: `<div style="font-size:1.3rem;">${place.emoji}</div>`,
+        className: "",
+        iconSize: [30, 30]
+      });
+
+      L.marker([place.lat, place.lon], { icon })
+        .addTo(map)
+        .bindPopup(`<b>${place.name}</b><br>Coordinates: ${place.lat.toFixed(2)}, ${place.lon.toFixed(2)}`);
+    });
+  </script>
+</body>
+</html>
+
+
+
